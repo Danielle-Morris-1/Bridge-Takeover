@@ -498,7 +498,7 @@ The SilentLynx threat actor successfully compromised the azuki-adminpc by moving
 | :--- | :--- |
 | **Attack Origin (Internal Pivot)** | Source IP `10.1.0.204` (Used as the bridgehead to access the admin PC). |
 | **C2 and Exfil Location** | **C2/Payload Server:** `litter.catbox.moe` (HTTPS). **Exfiltration:** Data sent to cloud service `gofile.io` via IP `45.112.123.227` on port 443. |
-| **Target System (Internal)** | `azuki-adminpc` (The high-value administrative workstation targeted for credential theft). |
+| **Target System (Internal)** | `azuki-adminpc` (The CEO's administrative workstation targeted for credential theft). |
 | **Affected Directories/Files** | `C:\ProgramData\Microsoft\Crypto\staging` (Stolen document staging) and `C:\Windows\Temp\cache\` (Malware staging and browser database dumping). |
 | **Network Segment** | The target `azuki-adminpc` is within the **internal network/private addressing space**. |
 | **Lateral Recon Destination** | The attacker utilized `nltest.exe` to enumerate all trusted domains within the Active Directory forest. |
@@ -507,13 +507,58 @@ The SilentLynx threat actor successfully compromised the azuki-adminpc by moving
 
 ### Why 
 
+| Field | Detail |
+| :--- | :--- |
+| **Likely Motive** | Primarily **Financially motivated**, focused on **bulk financial data theft** (QuickBooks, banking/tax records) and high-value credential harvesting (Chrome DPAPI dumping and KeePass vault theft) to facilitate account takeovers and direct financial fraud. |
+| **Target Value** | The system `azuki-adminpc` was targeted due to its role as an administrative workstation for the CEO containing sensitive corporate financial documentation, master password cleartext files, and expansive domain trust information for potential forest-wide lateral movement. |
+
 ---
 
 ### How 
 
+| Field | Detail |
+| :--- | :--- |
+| **Initial Access Method** | Lateral movement via Remote Interactive session (RDP) from a compromised internal pivot host. |
+| **Tools/Techniques Used** | Living-off-the-Land (LOTL) binaries (`curl`, `tar`, `robocopy`), renamed Mimikatz (`m.exe`), and Meterpreter C2. |
+| **Persistence Method** | Implementation of a "shadow" administrator account (`yuki.tanaka2`) to maintain access independent of initial compromised credentials. |
+| **Data Collection Method** | Automated staging of 8 compressed archives in masqueraded system directories (`\Microsoft\Crypto\staging`). |
+| **Communication Method** | Outbound HTTPS (Port 443) traffic to legitimate file-sharing services (`gofile.io`) to bypass network egress filtering. |
+
 ---
 
 ## 5. Recommendations for Findings
+
+### Immediate Actions Needed:
+
+1. **Account Containment:** Disable the `yuki.tanaka2` shadow administrator account and reset credentials for the primary `yuki.tanaka` account.
+
+2. **Credential Revocation:** Force a global password reset for all accounts found in the Azuki-Passwords.kdbx vault and the `OLD-Passwords.txt` file, as these are now considered compromised.
+
+3. **Network Blocking:** Implement immediate egress blocks at the firewall for the identified malicious IP `45.112.123.227` and the hosting domain `litter.catbox.moe`.
+
+### Short-term Improvements (1-30 days):
+
+1. **Staging Cleanup:** Conduct a forensic sweep of `C:\ProgramData\Microsoft\Crypto\` and `C:\Windows\Temp\cache\` to remove any residual `.tar.gz` archives or malicious binaries (`m.exe`, `meterpreter.exe`).
+
+2. **RDP Hardening:** Restrict Remote Desktop Protocol (RDP) access via Group Policy to require Multi-Factor Authentication (MFA) and limit connection sources to specific administrative jump boxes.
+
+3. **Clean Desk Policy for Filesystem:** Scan all user desktops and document folders for plaintext password files (.txt, .xlsx, .docx) and implement automated deletion or encryption for files matching credential-related keywords.
+
+### Long-term Security Enhancements:
+
+1. **LAPS Implementation:** Deploy Local Administrator Password Solution (LAPS) to ensure that local administrative passwords are unique, complex, and automatically rotated across all workstations.
+
+2. **Application Whitelisting (EDR):** Configure EDR policies to block the execution of unsigned or untrusted binaries from temporary directories like `\Windows\Temp\` and `\AppData\Local\Temp\`.
+
+3. **DLP (Data Loss Prevention):** Implement DLP rules to alert or block the upload of compressed archives (`.7z`, `.tar.gz`, `.zip`) to public file-sharing services (e.g., Gofile, Catbox, Mega) from administrative workstations.
+
+### Detection Improvements:
+
+1. **Monitoring Gaps Identified:** Lack of alerts for non-standard processes (like curl.exe or tar.exe) interacting with sensitive browser profile directories (Login Data).
+
+2. **Recommended Alerts:** Create a high-severity alert for any process creating subdirectories named "staging" or "cache" within C:\ProgramData\Microsoft\Crypto\.
+
+3. **Query Improvements:** Implement a proactive hunting query to detect native binaries (Robocopy.exe, tar.exe) used in sequence to touch multiple user document directories within a short window.
 
 ---
 
